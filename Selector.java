@@ -1,89 +1,108 @@
-import java.io.*;
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Selector {
 
-    private final ArrayList<String> foods; // 食物清單
-    private final Random random;          // 隨機生成器
+    private final Set<String> foods;
+    private final Path dataDir;
+    private final Path filePath;
 
-    // 構造函數
-    public Selector() {
-        foods = new ArrayList<>();
-        random = new Random();
-        // 確保資料夾存在
-        File dataDir = new File("data");
-        if (!dataDir.exists()) {
-            dataDir.mkdir(); // 自動建立資料夾
-            System.out.println("Created directory: " + dataDir.getAbsolutePath());
+    public Selector(String filePathStr) throws IOException {
+        this.foods = new LinkedHashSet<>();
+        this.dataDir = Paths.get("data");
+        this.filePath = dataDir.resolve(filePathStr);
+
+        if (Files.notExists(dataDir)) {
+            Files.createDirectories(dataDir);
         }
+
+        loadFromFile();
     }
 
-    // 新增食物
-    public void add(String food) {
-        if (!foods.contains(food)) {
-            foods.add(food);
-            System.out.println("Added " + food + " to the list of foods.");
-        } else {
-            System.out.println(food + " is already in the list.");
-        }
+    /**
+     * 新增食物，若已存在則不新增
+     *
+     * @param food 食物名稱
+     * @return 是否成功新增
+     */
+    public boolean add(String food) {
+        return foods.add(food);
     }
 
-    // 刪除食物
-    public void remove(String food) {
-        if (foods.remove(food)) {
-            System.out.println("Removed " + food + " from the list of foods.");
-        } else {
-            System.out.println(food + " is not in the list.");
-        }
+    /**
+     * 刪除食物
+     *
+     * @param food 食物名稱
+     * @return 是否成功刪除
+     */
+    public boolean remove(String food) {
+        return foods.remove(food);
     }
 
-    // 隨機選擇食物
+    /**
+     * 隨機選取一個食物
+     *
+     * @return 被選取的食物名稱，若無食物則返回空字串
+     */
     public String select() {
         if (foods.isEmpty()) {
-            return "No foods to select from.";
+            return "";
         }
-        int index = random.nextInt(foods.size());
-        return foods.get(index);
+        int index = (int) (Math.random() * foods.size());
+        return foods.stream().skip(index).findFirst().orElse("");
     }
 
-    // 儲存食物清單到檔案
-    public void saveToFile(String filePath) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+    /**
+     * 儲存食物列表至檔案
+     *
+     * @throws IOException 儲存失敗時拋出
+     */
+    public void saveToFile() throws IOException {
+        try (BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             for (String food : foods) {
                 writer.write(food);
                 writer.newLine();
             }
-            System.out.println("Foods have been saved to " + filePath);
-        } catch (IOException e) {
-            System.err.println("Error saving to file: " + e.getMessage());
         }
     }
 
-    // 從檔案加載食物清單
-    public void loadFromFile(String filePath) {
-        File file = new File(filePath);
-        if (!file.exists()) {
-            System.out.println("File not found, creating a new file: " + filePath);
-            saveToFile(filePath); // 自動創建空檔案
+    /**
+     * 從檔案載入食物列表
+     *
+     * @throws IOException 載入失敗時拋出
+     */
+    public void loadFromFile() throws IOException {
+        if (Files.notExists(filePath)) {
+            saveToFile(); // 建立空檔案
             return;
         }
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String food;
-            while ((food = reader.readLine()) != null) {
-                if (!foods.contains(food)) { // 避免重複
-                    foods.add(food);
+
+        try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
+            foods.clear();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    foods.add(trimmed);
                 }
             }
-            System.out.println("Foods have been loaded from " + filePath);
-        } catch (IOException e) {
-            System.err.println("Error loading from file: " + e.getMessage());
         }
     }
 
-    // 返回當前的食物清單
+    /**
+     * 獲取所有食物列表
+     *
+     * @return 食物列表的不可變副本
+     */
     public List<String> getFoods() {
-        return new ArrayList<>(foods); // 返回副本，避免直接修改原始清單
+        return foods.stream().collect(Collectors.toList());
     }
 }
